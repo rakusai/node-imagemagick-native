@@ -242,6 +242,7 @@ Handle<Value> Crop(const Arguments& args) {
   }
 
   if ( !(pTop->IsUndefined() && pLeft->IsUndefined() && pWidth->IsUndefined() && pHeight->IsUndefined()) ) {
+
     unsigned int width = pWidth->IsUndefined() ? image.columns():pWidth->NumberValue()*image.columns();
     if (debug) printf( "width: %d\n", width );
 

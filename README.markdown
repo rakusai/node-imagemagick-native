@@ -41,6 +41,24 @@ The `options` argument can have following values:
         debug:       optional. 1 or 0
     }
 
+
+### crop( options )
+
+Convert a buffer provided as `options.srcData` and return a Buffer.
+
+The `options` argument can have following values:
+
+    {
+        srcData:     required. Buffer with binary image data
+        left:        required. 0-1 float, normalized. defines left corner crop position, default 0
+        top:         required. 0-1 float, normalized. defines top corner crop position, defaul 0
+        width:       required. 0-1 float, normalized. defines crop width, default is 1 (image.width)
+        height:      required. 0-1 float, normalized. defines crop height, default is 1 (image.height)
+        quality:     optional. 0-100 integer, default 75. JPEG/MIFF/PNG compression level.
+        format:      optional. one of http://www.imagemagick.org/script/formats.php ex: "JPEG"
+        debug:       optional. 1 or 0
+    }
+
 ### identify( options )
 
 Identify a buffer provided as `srcData` and return an object.
