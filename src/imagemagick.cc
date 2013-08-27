@@ -166,11 +166,11 @@ Handle<Value> Convert(const Arguments& args) {
 //   args[ 0 ]: options. required, object with following key,values
 //              {
 //                  srcData:     required. Buffer with binary image data
-//                  left:        required. % defines left corner crop position
-//                  top:         required. % defines top corner crop position
+//                  left:        required. 0-1 defines left corner crop position, default 0
+//                  top:         required. 0-1 defines top corner crop position, default0
 //                  quality:     optional. 0-100 integer, default 75. JPEG/MIFF/PNG compression level.
-//                  width:       optional. % default image width - left
-//                  height:      optional. % default image height - top
+//                  width:       optional. 0-1 defines crop width, default is image.width
+//                  height:      optional. 0-1 defines crop height, default is image.height
 //                  format:      optional. one of http://www.imagemagick.org/script/formats.php ex: "JPEG"
 //                  debug:       optional. 1 or 0
 //              }
@@ -215,6 +215,7 @@ Handle<Value> Crop(const Arguments& args) {
   int debug = obj->Get( String::NewSymbol("debug") )->Uint32Value();
   if (debug) printf( "debug: on\n" );
 
+
   Magick::Blob srcBlob( node::Buffer::Data(srcData), node::Buffer::Length(srcData) );
 
   Magick::Image image;
@@ -232,17 +233,6 @@ Handle<Value> Crop(const Arguments& args) {
 
   if (debug) printf("original width,height: %d, %d\n", (int) image.columns(), (int) image.rows());
 
-  unsigned int width = pWidth->NumberValue()*image.columns();
-  if (debug) printf( "width: %d\n", width );
-
-  unsigned int height = pHeight->NumberValue()*image.rows();
-  if (debug) printf( "height: %d\n", height );
-
-  unsigned int top = pTop->NumberValue()*image.columns();
-  if (debug) printf( "top: %d\n", top );
-
-  unsigned int left = pLeft->NumberValue()*image.rows();
-  if (debug) printf( "left: %d\n", left );
 
   Local<Value> formatValue = obj->Get( String::NewSymbol("format") );
   String::AsciiValue format( formatValue->ToString() );
@@ -251,56 +241,29 @@ Handle<Value> Crop(const Arguments& args) {
     image.magick( *format );
   }
 
-  if ( width || height ) {
-    if ( ! width  ) { width  = image.columns(); }
-    if ( ! height ) { height = image.rows();    }
+  if ( !(pTop->IsUndefined() && pLeft->IsUndefined() && pWidth->IsUndefined() && pHeight->IsUndefined()) ) {
+    unsigned int width = pWidth->IsUndefined() ? image.columns():pWidth->NumberValue()*image.columns();
+    if (debug) printf( "width: %d\n", width );
 
-    // do resize
-    // ^ : Fill Area Flag ('^' flag)
-    // is not implemented in Magick++
-    // and gravity: center, extent doesnt look like working as exptected
-    // so we do it ourselves
+    unsigned int height = pHeight->IsUndefined() ? image.rows():pHeight->NumberValue()*image.rows();
+    if (debug) printf( "height: %d\n", height );
 
-    // keep aspect ratio, get the exact provided size, crop top/bottom or left/right if necessary
-    double aspectratioExpected = (double)height / (double)width;
-    double aspectratioOriginal = (double)image.rows() / (double)image.columns();
-    unsigned int xoffset = 0;
-    unsigned int yoffset = 0;
-    unsigned int resizewidth;
-    unsigned int resizeheight;
-    if ( aspectratioExpected > aspectratioOriginal ) {
-      // expected is taller
-      resizewidth  = (unsigned int)( (double)height / (double)image.rows() * (double)image.columns() + 1. );
-      resizeheight = height;
-      xoffset      = (unsigned int)( (resizewidth - width) / 2. );
-      yoffset      = 0;
-    }
-    else {
-      // expected is wider
-      resizewidth  = width;
-      resizeheight = (unsigned int)( (double)width / (double)image.columns() * (double)image.rows() + 1. );
-      xoffset      = 0;
-      yoffset      = (unsigned int)( (resizeheight - height) / 2. );
-    }
+    unsigned int top = pTop->IsUndefined() ? 0:pTop->NumberValue()*image.rows();
+    if (debug) printf( "top: %d\n", top );
 
-    if (debug) printf( "resize to: %d, %d\n", resizewidth, resizeheight );
-    Magick::Geometry resizeGeometry( resizewidth, resizeheight, 0, 0, 0, 0 );
-    image.resize( resizeGeometry );
+    unsigned int left = pLeft->IsUndefined() ? 0:pLeft->NumberValue()*image.columns();
+    if (debug) printf( "left: %d\n", left );
 
     // limit canvas size to cropGeometry
-    if (debug) printf( "crop to: %d, %d, %d, %d\n", width, height, xoffset, yoffset );
-    Magick::Geometry cropGeometry( width, height, xoffset, yoffset, 0, 0 );
+    if (debug) printf("crop to: %d, %d, %d, %d\n", width, height, left, top);
+    Magick::Geometry cropGeometry( width, height, left, top, 0, 0 );
 
-    Magick::Color transparent( "white" );
-    if ( strcmp( *format, "PNG" ) == 0 ) {
-      // make background transparent for PNG
-      // JPEG background becomes black if set transparent here
-      transparent.alpha( 1. );
-    }
-    image.extent( cropGeometry, transparent );
-    if (debug) printf( "resized to: %d, %d\n", (int)image.columns(), (int)image.rows() );
+    image.crop(cropGeometry);
+
+    if (debug) printf( "cropped to: %d, %d\n", (int)image.columns(), (int)image.rows() );
   }
 
+  //TODO remove quality settings and move them out into separate method
   unsigned int quality = obj->Get( String::NewSymbol("quality") )->Uint32Value();
   if ( quality ) {
     if (debug) printf( "quality: %d\n", quality );
@@ -322,47 +285,47 @@ Handle<Value> Crop(const Arguments& args) {
 //                  debug:          optional. 1 or 0
 //              }
 Handle<Value> Identify(const Arguments& args) {
-    HandleScope scope;
-    MagickCore::SetMagickResourceLimit(MagickCore::ThreadResource, 1);
+  HandleScope scope;
+  MagickCore::SetMagickResourceLimit(MagickCore::ThreadResource, 1);
 
-    if ( args.Length() != 1 ) {
-        return THROW_ERROR_EXCEPTION("identify() requires 1 (option) argument!");
-    }
-    Local<Object> obj = Local<Object>::Cast( args[ 0 ] );
+  if ( args.Length() != 1 ) {
+    return THROW_ERROR_EXCEPTION("identify() requires 1 (option) argument!");
+  }
+  Local<Object> obj = Local<Object>::Cast( args[ 0 ] );
 
-    Local<Object> srcData = Local<Object>::Cast( obj->Get( String::NewSymbol("srcData") ) );
-    if ( srcData->IsUndefined() || ! node::Buffer::HasInstance(srcData) ) {
-        return THROW_ERROR_EXCEPTION("identify()'s 1st argument should have \"srcData\" key with a Buffer instance");
-    }
+  Local<Object> srcData = Local<Object>::Cast( obj->Get( String::NewSymbol("srcData") ) );
+  if ( srcData->IsUndefined() || ! node::Buffer::HasInstance(srcData) ) {
+    return THROW_ERROR_EXCEPTION("identify()'s 1st argument should have \"srcData\" key with a Buffer instance");
+  }
 
-    int debug = obj->Get( String::NewSymbol("debug") )->Uint32Value();
-    if (debug) printf( "debug: on\n" );
+  int debug = obj->Get( String::NewSymbol("debug") )->Uint32Value();
+  if (debug) printf( "debug: on\n" );
 
-    Magick::Blob srcBlob( node::Buffer::Data(srcData), node::Buffer::Length(srcData) );
+  Magick::Blob srcBlob( node::Buffer::Data(srcData), node::Buffer::Length(srcData) );
 
-    Magick::Image image;
-    try {
-        image.read( srcBlob );
-    }
-    catch (std::exception& err) {
-        std::string message = "image.read failed with error: ";
-        message            += err.what();
-        return THROW_ERROR_EXCEPTION(message.c_str());
-    }
-    catch (...) {
-        return THROW_ERROR_EXCEPTION("unhandled error");
-    }
+  Magick::Image image;
+  try {
+    image.read( srcBlob );
+  }
+  catch (std::exception& err) {
+    std::string message = "image.read failed with error: ";
+    message            += err.what();
+    return THROW_ERROR_EXCEPTION(message.c_str());
+  }
+  catch (...) {
+    return THROW_ERROR_EXCEPTION("unhandled error");
+  }
 
-    if (debug) printf("original width,height: %d, %d\n", (int) image.columns(), (int) image.rows());
+  if (debug) printf("original width,height: %d, %d\n", (int) image.columns(), (int) image.rows());
 
-    Handle<Object> out = Object::New();
+  Handle<Object> out = Object::New();
 
-    out->Set(String::NewSymbol("width"), Integer::New(image.columns()));
-    out->Set(String::NewSymbol("height"), Integer::New(image.rows()));
-    out->Set(String::NewSymbol("depth"), Integer::New(image.depth()));
-    out->Set(String::NewSymbol("format"), String::New(image.magick().c_str()));
+  out->Set(String::NewSymbol("width"), Integer::New(image.columns()));
+  out->Set(String::NewSymbol("height"), Integer::New(image.rows()));
+  out->Set(String::NewSymbol("depth"), Integer::New(image.depth()));
+  out->Set(String::NewSymbol("format"), String::New(image.magick().c_str()));
 
-    return scope.Close( out );
+  return scope.Close( out );
 }
 
 // input
@@ -373,110 +336,110 @@ Handle<Value> Identify(const Arguments& args) {
 //                  debug:          optional. 1 or 0
 //              }
 Handle<Value> QuantizeColors(const Arguments& args) {
-    HandleScope scope;
-    MagickCore::SetMagickResourceLimit(MagickCore::ThreadResource, 1);
+  HandleScope scope;
+  MagickCore::SetMagickResourceLimit(MagickCore::ThreadResource, 1);
 
-    if ( args.Length() != 1 ) {
-        return THROW_ERROR_EXCEPTION("quantizeColors() requires 1 (option) argument!");
+  if ( args.Length() != 1 ) {
+    return THROW_ERROR_EXCEPTION("quantizeColors() requires 1 (option) argument!");
+  }
+  Local<Object> obj = Local<Object>::Cast( args[ 0 ] );
+
+  Local<Object> srcData = Local<Object>::Cast( obj->Get( String::NewSymbol("srcData") ) );
+  if ( srcData->IsUndefined() || ! node::Buffer::HasInstance(srcData) ) {
+    return THROW_ERROR_EXCEPTION("quantizeColors()'s 1st argument should have \"srcData\" key with a Buffer instance");
+  }
+
+  int colorsCount = obj->Get( String::NewSymbol("colors") )->Uint32Value();
+  if (!colorsCount) colorsCount = 5;
+
+  int debug = obj->Get( String::NewSymbol("debug") )->Uint32Value();
+  if (debug) printf( "debug: on\n" );
+
+  Magick::Blob srcBlob( node::Buffer::Data(srcData), node::Buffer::Length(srcData) );
+
+  Magick::Image image;
+  try {
+    image.read( srcBlob );
+  }
+  catch (std::exception& err) {
+    std::string message = "image.read failed with error: ";
+    message            += err.what();
+    return THROW_ERROR_EXCEPTION(message.c_str());
+  }
+  catch (...) {
+    return THROW_ERROR_EXCEPTION("unhandled error");
+  }
+
+  ssize_t rows = 196; ssize_t columns = 196;
+
+  if (debug) printf( "resize to: %d, %d\n", (int) rows, (int) columns );
+  Magick::Geometry resizeGeometry( rows, columns, 0, 0, 0, 0 );
+  image.resize( resizeGeometry );
+
+  if (debug) printf("totalColors before: %d\n", (int) image.totalColors());
+
+  image.quantizeColors(colorsCount + 1);
+  image.quantize();
+
+  if (debug) printf("totalColors after: %d\n", (int) image.totalColors());
+
+  Magick::PixelPacket* pixels = image.getPixels(0, 0, image.columns(), image.rows());
+
+  Magick::PixelPacket* colors = new Magick::PixelPacket[colorsCount]();
+  int index = 0;
+
+  for ( ssize_t x = 0; x < rows ; x++ ) {
+    for ( ssize_t y = 0; y < columns ; y++ ) {
+      Magick::PixelPacket pixel = pixels[rows * x + y];
+
+      bool found = false;
+      for(int x = 0; x < colorsCount; x++)
+        if (pixel.red == colors[x].red && pixel.green == colors[x].green && pixel.blue == colors[x].blue) found = true;
+
+      if (!found) colors[index++] = pixel;
+      if (index >= colorsCount) break;
     }
-    Local<Object> obj = Local<Object>::Cast( args[ 0 ] );
+    if (index >= colorsCount) break;
+  }
 
-    Local<Object> srcData = Local<Object>::Cast( obj->Get( String::NewSymbol("srcData") ) );
-    if ( srcData->IsUndefined() || ! node::Buffer::HasInstance(srcData) ) {
-        return THROW_ERROR_EXCEPTION("quantizeColors()'s 1st argument should have \"srcData\" key with a Buffer instance");
-    }
+  Handle<Object> out = Array::New();
 
-    int colorsCount = obj->Get( String::NewSymbol("colors") )->Uint32Value();
-    if (!colorsCount) colorsCount = 5;
+  for(int x = 0; x < colorsCount; x++)
+    if (debug) printf("found rgb : %d %d %d\n", ((int) colors[x].red) / 255, ((int) colors[x].green) / 255, ((int) colors[x].blue) / 255);
 
-    int debug = obj->Get( String::NewSymbol("debug") )->Uint32Value();
-    if (debug) printf( "debug: on\n" );
+  for(int x = 0; x < colorsCount; x++) {
+    Local<Object> color = Object::New();
 
-    Magick::Blob srcBlob( node::Buffer::Data(srcData), node::Buffer::Length(srcData) );
+    int r = ((int) colors[x].red) / 255;
+    if (r > 255) r = 255;
 
-    Magick::Image image;
-    try {
-        image.read( srcBlob );
-    }
-    catch (std::exception& err) {
-        std::string message = "image.read failed with error: ";
-        message            += err.what();
-        return THROW_ERROR_EXCEPTION(message.c_str());
-    }
-    catch (...) {
-        return THROW_ERROR_EXCEPTION("unhandled error");
-    }
+    int g = ((int) colors[x].green) / 255;
+    if (g > 255) g = 255;
 
-    ssize_t rows = 196; ssize_t columns = 196;
+    int b = ((int) colors[x].blue) / 255;
+    if (b > 255) b = 255;
 
-    if (debug) printf( "resize to: %d, %d\n", (int) rows, (int) columns );
-    Magick::Geometry resizeGeometry( rows, columns, 0, 0, 0, 0 );
-    image.resize( resizeGeometry );
+    color->Set(String::NewSymbol("r"), Integer::New(r));
+    color->Set(String::NewSymbol("g"), Integer::New(g));
+    color->Set(String::NewSymbol("b"), Integer::New(b));
 
-    if (debug) printf("totalColors before: %d\n", (int) image.totalColors());
+    char hexcol[16];
+    snprintf(hexcol, sizeof hexcol, "%02x%02x%02x", r, g, b);
+    color->Set(String::NewSymbol("hex"), String::New(hexcol));
 
-    image.quantizeColors(colorsCount + 1);
-    image.quantize();
+    out->Set(x, color);
+  }
 
-    if (debug) printf("totalColors after: %d\n", (int) image.totalColors());
+  delete[] colors;
 
-    Magick::PixelPacket* pixels = image.getPixels(0, 0, image.columns(), image.rows());
-
-    Magick::PixelPacket* colors = new Magick::PixelPacket[colorsCount]();
-    int index = 0;
-
-    for ( ssize_t x = 0; x < rows ; x++ ) {
-        for ( ssize_t y = 0; y < columns ; y++ ) {
-            Magick::PixelPacket pixel = pixels[rows * x + y];
-
-            bool found = false;
-            for(int x = 0; x < colorsCount; x++)
-                if (pixel.red == colors[x].red && pixel.green == colors[x].green && pixel.blue == colors[x].blue) found = true;
-
-            if (!found) colors[index++] = pixel;
-            if (index >= colorsCount) break;
-        }
-        if (index >= colorsCount) break;
-    }
-
-    Handle<Object> out = Array::New();
-
-    for(int x = 0; x < colorsCount; x++)
-        if (debug) printf("found rgb : %d %d %d\n", ((int) colors[x].red) / 255, ((int) colors[x].green) / 255, ((int) colors[x].blue) / 255);
-
-    for(int x = 0; x < colorsCount; x++) {
-        Local<Object> color = Object::New();
-
-        int r = ((int) colors[x].red) / 255;
-        if (r > 255) r = 255;
-
-        int g = ((int) colors[x].green) / 255;
-        if (g > 255) g = 255;
-
-        int b = ((int) colors[x].blue) / 255;
-        if (b > 255) b = 255;
-
-        color->Set(String::NewSymbol("r"), Integer::New(r));
-        color->Set(String::NewSymbol("g"), Integer::New(g));
-        color->Set(String::NewSymbol("b"), Integer::New(b));
-
-        char hexcol[16];
-        snprintf(hexcol, sizeof hexcol, "%02x%02x%02x", r, g, b);
-        color->Set(String::NewSymbol("hex"), String::New(hexcol));
-
-        out->Set(x, color);
-    }
-
-    delete[] colors;
-
-    return scope.Close( out );
+  return scope.Close( out );
 }
 
 void init(Handle<Object> target) {
-    target->Set(String::NewSymbol("convert"), FunctionTemplate::New(Convert)->GetFunction());
-    target->Set(String::NewSymbol("crop"), FunctionTemplate::New(Crop)->GetFunction());
-    target->Set(String::NewSymbol("identify"), FunctionTemplate::New(Identify)->GetFunction());
-    target->Set(String::NewSymbol("quantizeColors"), FunctionTemplate::New(QuantizeColors)->GetFunction());
+  target->Set(String::NewSymbol("convert"), FunctionTemplate::New(Convert)->GetFunction());
+  target->Set(String::NewSymbol("crop"), FunctionTemplate::New(Crop)->GetFunction());
+  target->Set(String::NewSymbol("identify"), FunctionTemplate::New(Identify)->GetFunction());
+  target->Set(String::NewSymbol("quantizeColors"), FunctionTemplate::New(QuantizeColors)->GetFunction());
 }
 
 // There is no semi-colon after NODE_MODULE as it's not a function (see node.h).
