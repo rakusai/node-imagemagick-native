@@ -2,6 +2,8 @@
 
 [Imagemagick](http://www.imagemagick.org/)'s [Magick++](http://www.imagemagick.org/Magick++/) binding for [Node](http://nodejs.org/).
 
+[![Build Status](https://travis-ci.org/mash/node-imagemagick-native.png)](https://travis-ci.org/mash/node-imagemagick-native)
+
 ## Example
 
     var imagemagick = require('imagemagick-native')
@@ -41,7 +43,62 @@ The `options` argument can have following values:
         debug:       optional. 1 or 0
     }
 
-This library currently provide only this, please try [node-imagemagick](https://github.com/rsms/node-imagemagick/) if you want more.
+### identify( options )
+
+Identify a buffer provided as `srcData` and return an object.
+
+The `options` argument can have following values:
+
+    {
+        srcData:     required. Buffer with binary image data
+        debug:       optional. 1 or 0
+    }
+
+The method returns an object similar to:
+
+    {
+        format: 'JPEG',
+        width: 3904,
+        height: 2622,
+        depth: 8
+    }
+
+### quantizeColors( options )
+
+Quantize the image to a specified amount of colors from a buffer provided as `srcData` and return an array.
+
+The `options` argument can have following values:
+
+    {
+        srcData:     required. Buffer with binary image data
+        colors:      required. number of colors to extract, defaults to 5
+        debug:       optional. 1 or 0
+    }
+
+The method returns an array similar to:
+
+    [
+        {
+            r: 83,
+            g: 56,
+            b: 35,
+            hex: '533823'
+        },
+        {
+            r: 149,
+            g: 110,
+            b: 73,
+            hex: '956e49'
+        },
+        {
+            r: 165,
+            g: 141,
+            b: 111,
+            hex: 'a58d6f
+        }
+    ]
+
+This library currently provide only these, please try [node-imagemagick](https://github.com/rsms/node-imagemagick/) if you want more.
 
 ## Installation
 
@@ -70,7 +127,7 @@ Then:
 Tested on Windows 7 x64.
 
 1. Install Python 2.7.3 only 2.7.3 nothing else works quite right!
-    
+
     If you use Cygwin ensure you don't have Python installed in Cygwin setup as there will be some confusion about what version to use.
 
 2. Install [Visual Studio C++ 2010 Express](http://www.microsoft.com/en-us/download/details.aspx?id=8279)
