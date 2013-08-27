@@ -2,8 +2,6 @@
 
 [Imagemagick](http://www.imagemagick.org/)'s [Magick++](http://www.imagemagick.org/Magick++/) binding for [Node](http://nodejs.org/).
 
-[![Build Status](https://travis-ci.org/mash/node-imagemagick-native.png)](https://travis-ci.org/mash/node-imagemagick-native)
-
 ## Example
 
     var imagemagick = require('imagemagick-native')
