@@ -333,6 +333,88 @@ Handle<Value> Identify(const Arguments& args) {
 //   args[ 0 ]: options. required, object with following key,values
 //              {
 //                  srcData:        required. Buffer with binary image data
+//                  debug:          optional. 1 or 0
+//              }
+Handle<Value> Normalize(const Arguments& args) {
+  HandleScope scope;
+  MagickCore::SetMagickResourceLimit(MagickCore::ThreadResource, 1);
+
+  if ( args.Length() != 1 ) {
+    return THROW_ERROR_EXCEPTION("Normalize() requires 1 (option) argument!");
+  }
+  Local<Object> obj = Local<Object>::Cast( args[ 0 ] );
+
+  Local<Object> srcData = Local<Object>::Cast( obj->Get( String::NewSymbol("srcData") ) );
+  if ( srcData->IsUndefined() || ! node::Buffer::HasInstance(srcData) ) {
+    return THROW_ERROR_EXCEPTION("Normalize()'s 1st argument should have \"srcData\" key with a Buffer instance");
+  }
+
+  int debug = obj->Get( String::NewSymbol("debug") )->Uint32Value();
+  if (debug) printf( "debug: on\n" );
+
+  Magick::Blob srcBlob( node::Buffer::Data(srcData), node::Buffer::Length(srcData) );
+
+  Magick::Image image;
+  try {
+    image.read( srcBlob );
+  }
+  catch (std::exception& err) {
+    std::string message = "image.read failed with error: ";
+    message            += err.what();
+    return THROW_ERROR_EXCEPTION(message.c_str());
+  }
+  catch (...) {
+    return THROW_ERROR_EXCEPTION("unhandled error");
+  }
+
+  int orientation = atoi(image.attribute("EXIF:Orientation").c_str());
+  if (debug) printf("orientation: %d\n", orientation);
+
+  Magick::DrawableAffine affine;
+  switch (orientation) {
+    case 1:
+      affine = Magick::DrawableAffine(1, 1, 0, 0, 0, 0);
+      break;
+    case 2:
+      affine = Magick::DrawableAffine(-1, 1, 0, 0, 0, 0);
+      break;
+    case 3:
+      affine = Magick::DrawableAffine(-1, -1, 0, 0, 0, 0);
+      break;
+    case 4:
+      affine = Magick::DrawableAffine(1, -1, 0, 0, 0, 0);
+      break;
+    case 5:
+      affine = Magick::DrawableAffine(-1, 1, 1, -1, 0, 0);
+      break;
+    case 6:
+      affine = Magick::DrawableAffine(0, 0, 1, -1, 0, 0);
+      break;
+    case 7:
+      affine = Magick::DrawableAffine(-1, 1, -1, 1, 0, 0);
+      break;
+    case 8:
+      affine = Magick::DrawableAffine(0, 0, -1, 1, 0, 0);
+      break;
+    default:
+      if (debug) printf("orientation is missing. skipping");
+      return scope.Close(Undefined());
+  }
+  image.affineTransform(affine);
+  image.strip();
+
+  Magick::Blob dstBlob;
+  image.write( &dstBlob );
+
+  node::Buffer* retBuffer = node::Buffer::New( dstBlob.length() );
+  memcpy( node::Buffer::Data( retBuffer->handle_ ), dstBlob.data(), dstBlob.length() );
+  return scope.Close( retBuffer->handle_ );
+}
+
+// input
+//   args[ 0 ]: options. required, object with following key,values
+//              {
+//                  srcData:        required. Buffer with binary image data
 //                  colors:         optional. 5 by default
 //                  debug:          optional. 1 or 0
 //              }
@@ -440,6 +522,7 @@ void init(Handle<Object> target) {
   target->Set(String::NewSymbol("convert"), FunctionTemplate::New(Convert)->GetFunction());
   target->Set(String::NewSymbol("crop"), FunctionTemplate::New(Crop)->GetFunction());
   target->Set(String::NewSymbol("identify"), FunctionTemplate::New(Identify)->GetFunction());
+  target->Set(String::NewSymbol("normalize"), FunctionTemplate::New(Normalize)->GetFunction());
   target->Set(String::NewSymbol("quantizeColors"), FunctionTemplate::New(QuantizeColors)->GetFunction());
 }
 
