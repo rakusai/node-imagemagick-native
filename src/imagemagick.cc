@@ -370,37 +370,39 @@ Handle<Value> Normalize(const Arguments& args) {
   int orientation = atoi(image.attribute("EXIF:Orientation").c_str());
   if (debug) printf("orientation: %d\n", orientation);
 
-  Magick::DrawableAffine affine;
+  // Magick::DrawableAffine affine;
   switch (orientation) {
     case 1:
-      affine = Magick::DrawableAffine(1, 1, 0, 0, 0, 0);
+      // no need to do anything
       break;
     case 2:
-      affine = Magick::DrawableAffine(-1, 1, 0, 0, 0, 0);
+      image.flip();
       break;
     case 3:
-      affine = Magick::DrawableAffine(-1, -1, 0, 0, 0, 0);
+      image.rotate(180);
       break;
     case 4:
-      affine = Magick::DrawableAffine(1, -1, 0, 0, 0, 0);
+      image.flop();
       break;
     case 5:
-      affine = Magick::DrawableAffine(-1, 1, 1, -1, 0, 0);
+      image.rotate(90);
+      image.flip();
       break;
     case 6:
-      affine = Magick::DrawableAffine(0, 0, 1, -1, 0, 0);
+      image.rotate(90);
       break;
     case 7:
-      affine = Magick::DrawableAffine(-1, 1, -1, 1, 0, 0);
+      image.rotate(-90);
+      image.flip();
       break;
     case 8:
-      affine = Magick::DrawableAffine(0, 0, -1, 1, 0, 0);
+      image.rotate(-90);
       break;
     default:
       if (debug) printf("orientation is missing. skipping");
       return scope.Close(Undefined());
   }
-  image.affineTransform(affine);
+  // image.affineTransform(affine);
   image.strip();
 
   Magick::Blob dstBlob;
