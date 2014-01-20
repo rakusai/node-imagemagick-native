@@ -14,7 +14,7 @@
   "targets": [
     {
       "target_name": "imagemagick",
-      "sources": [ "src/imagemagick.cc" ],
+      "sources": [ "src/imagemagick.cc", "src/async_magick.cc" ],
       'cflags!': [ '-fno-exceptions' ],
       'cflags_cc!': [ '-fno-exceptions' ],
       "conditions": [
@@ -42,12 +42,18 @@
           "libraries": [
              '<!@(Magick++-config --ldflags --libs)',
           ],
+          'include_dirs': [
+            "<!(node -e \"require('nan')\")",
+          ],
           'cflags': [
             '<!@(Magick++-config --cflags --cppflags)'
           ],
         }], ['OS=="linux"', { # not windows not mac
           "libraries": [
             '<!@(Magick++-config --ldflags --libs)',
+          ],
+          'include_dirs': [
+            "<!(node -e \"require('nan')\")",
           ],
           'cflags': [
             '<!@(Magick++-config --cflags --cppflags)'

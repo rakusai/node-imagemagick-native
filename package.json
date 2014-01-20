@@ -22,7 +22,9 @@
   "engines": {
     "node": "*"
   },
-  "dependencies": {},
+  "dependencies": {
+    "nan": "0.8.0"
+  },
   "devDependencies": {
     "tap": "*",
     "grunt": "~0.4.1",

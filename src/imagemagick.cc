@@ -21,50 +21,39 @@
 //                  format:      optional. one of http://www.imagemagick.org/script/formats.php ex: "JPEG"
 //                  debug:       optional. 1 or 0
 //              }
-Handle<Value> Convert(const Arguments& args) {
-  HandleScope scope;
+NAN_METHOD(Convert) {
+  NanScope();
   MagickCore::SetMagickResourceLimit(MagickCore::ThreadResource, 1);
 
-  if ( args.Length() != 1 ) {
-    return THROW_ERROR_EXCEPTION("convert() requires 1 (option) argument!");
+  if ( args.Length() != 2 ) {
+    return THROW_ERROR_EXCEPTION("convert() requires one option argument and one callback argument!");
   }
-  if ( ! args[ 0 ]->IsObject() ) {
+  if ( ! args[0]->IsObject() ) {
     return THROW_ERROR_EXCEPTION("convert()'s 1st argument should be an object");
   }
-  Local<Object> obj = Local<Object>::Cast( args[ 0 ] );
+  if ( ! args[1]->IsFunction() ) {
+    return THROW_ERROR_EXCEPTION("convert()'s 1st argument should be an object");
+  }
+  Local<Object> obj = Local<Object>::Cast(args[0]);
+  NanCallback *callback = new NanCallback(args[1].As<Function>());
 
-  Local<Object> srcData = Local<Object>::Cast( obj->Get( String::NewSymbol("srcData") ) );
+  Local<Object> srcData = Local<Object>::Cast( obj->Get( NanSymbol("srcData") ) );
   if ( srcData->IsUndefined() || ! node::Buffer::HasInstance(srcData) ) {
     return THROW_ERROR_EXCEPTION("convert()'s 1st argument should have \"srcData\" key with a Buffer instance");
   }
 
-  int debug = obj->Get( String::NewSymbol("debug") )->Uint32Value();
+  int debug = NanUInt32OptionValue(obj, NanSymbol("debug"), 0);
   if (debug) printf( "debug: on\n" );
 
-  Magick::Blob srcBlob( node::Buffer::Data(srcData), node::Buffer::Length(srcData) );
+  Magick::Blob srcBlob( Buffer::Data(srcData), Buffer::Length(srcData) );
 
-  Magick::Image image;
-  try {
-    image.read( srcBlob );
-  }
-  catch (std::exception& err) {
-    std::string message = "image.read failed with error: ";
-    message            += err.what();
-    return THROW_ERROR_EXCEPTION(message.c_str());
-  }
-  catch (...) {
-    return THROW_ERROR_EXCEPTION("unhandled error");
-  }
-
-  if (debug) printf("original width,height: %d, %d\n", (int) image.columns(), (int) image.rows());
-
-  unsigned int width = obj->Get( String::NewSymbol("width") )->Uint32Value();
+  unsigned int width = NanUInt32OptionValue(obj, NanSymbol("width"), 0);
   if (debug) printf( "width: %d\n", width );
 
-  unsigned int height = obj->Get( String::NewSymbol("height") )->Uint32Value();
+  unsigned int height = NanUInt32OptionValue(obj, NanSymbol("height"), 0);
   if (debug) printf( "height: %d\n", height );
 
-  Local<Value> resizeStyleValue = obj->Get( String::NewSymbol("resizeStyle") );
+  Local<Value> resizeStyleValue = obj->Get( NanSymbol("resizeStyle") );
   const char* resizeStyle = "aspectfill";
   String::AsciiValue resizeStyleAsciiValue( resizeStyleValue->ToString() );
   if ( ! resizeStyleValue->IsUndefined() ) {
@@ -72,94 +61,12 @@ Handle<Value> Convert(const Arguments& args) {
   }
   if (debug) printf( "resizeStyle: %s\n", resizeStyle );
 
-  Local<Value> formatValue = obj->Get( String::NewSymbol("format") );
-  String::AsciiValue format( formatValue->ToString() );
-  if ( ! formatValue->IsUndefined() ) {
-    if (debug) printf( "format: %s\n", *format );
-    image.magick( *format );
-  }
+  unsigned int quality = NanUInt32OptionValue(obj, NanSymbol("quality"), 0);
 
-  if ( width || height ) {
-    if ( ! width  ) { width  = image.columns(); }
-    if ( ! height ) { height = image.rows();    }
+  const char *format = NanFromV8String(obj->Get( NanSymbol("format")));
 
-    // do resize
-    if ( strcmp( resizeStyle, "aspectfill" ) == 0 ) {
-      // ^ : Fill Area Flag ('^' flag)
-      // is not implemented in Magick++
-      // and gravity: center, extent doesnt look like working as exptected
-      // so we do it ourselves
-
-      // keep aspect ratio, get the exact provided size, crop top/bottom or left/right if necessary
-      double aspectratioExpected = (double)height / (double)width;
-      double aspectratioOriginal = (double)image.rows() / (double)image.columns();
-      unsigned int xoffset = 0;
-      unsigned int yoffset = 0;
-      unsigned int resizewidth;
-      unsigned int resizeheight;
-      if ( aspectratioExpected > aspectratioOriginal ) {
-        // expected is taller
-        resizewidth  = (unsigned int)( (double)height / (double)image.rows() * (double)image.columns() + 1. );
-        resizeheight = height;
-        xoffset      = (unsigned int)( (resizewidth - width) / 2. );
-        yoffset      = 0;
-      }
-      else {
-        // expected is wider
-        resizewidth  = width;
-        resizeheight = (unsigned int)( (double)width / (double)image.columns() * (double)image.rows() + 1. );
-        xoffset      = 0;
-        yoffset      = (unsigned int)( (resizeheight - height) / 2. );
-      }
-
-      if (debug) printf( "resize to: %d, %d\n", resizewidth, resizeheight );
-      Magick::Geometry resizeGeometry( resizewidth, resizeheight, 0, 0, 0, 0 );
-      image.resize( resizeGeometry );
-
-      // limit canvas size to cropGeometry
-      if (debug) printf( "crop to: %d, %d, %d, %d\n", width, height, xoffset, yoffset );
-      Magick::Geometry cropGeometry( width, height, xoffset, yoffset, 0, 0 );
-
-      Magick::Color transparent( "white" );
-      if ( strcmp( *format, "PNG" ) == 0 ) {
-        // make background transparent for PNG
-        // JPEG background becomes black if set transparent here
-        transparent.alpha( 1. );
-      }
-      image.extent( cropGeometry, transparent );
-    }
-    else if ( strcmp ( resizeStyle, "aspectfit" ) == 0 ) {
-      // keep aspect ratio, get the maximum image which fits inside specified size
-      char geometryString[ 32 ];
-      sprintf( geometryString, "%dx%d", width, height );
-      if (debug) printf( "resize to: %s\n", geometryString );
-      image.resize( geometryString );
-    }
-    else if ( strcmp ( resizeStyle, "fill" ) == 0 ) {
-      // change aspect ratio and fill specified size
-      char geometryString[ 32 ];
-      sprintf( geometryString, "%dx%d!", width, height );
-      if (debug) printf( "resize to: %s\n", geometryString );
-      image.resize( geometryString );
-    }
-    else {
-      return THROW_ERROR_EXCEPTION("resizeStyle not supported");
-    }
-    if (debug) printf( "resized to: %d, %d\n", (int)image.columns(), (int)image.rows() );
-  }
-
-  unsigned int quality = obj->Get( String::NewSymbol("quality") )->Uint32Value();
-  if ( quality ) {
-    if (debug) printf( "quality: %d\n", quality );
-    image.quality( quality );
-  }
-
-  Magick::Blob dstBlob;
-  image.write( &dstBlob );
-
-  node::Buffer* retBuffer = node::Buffer::New( dstBlob.length() );
-  memcpy( node::Buffer::Data( retBuffer->handle_ ), dstBlob.data(), dstBlob.length() );
-  return scope.Close( retBuffer->handle_ );
+  NanAsyncQueueWorker(new ConvertWorker(callback, debug, srcBlob, width, height, quality, format, resizeStyle));
+  NanReturnUndefined();
 }
 
 // input
@@ -187,32 +94,32 @@ Handle<Value> Crop(const Arguments& args) {
   }
   Local<Object> obj = Local<Object>::Cast( args[ 0 ] );
 
-  Local<Object> srcData = Local<Object>::Cast( obj->Get( String::NewSymbol("srcData") ) );
+  Local<Object> srcData = Local<Object>::Cast( obj->Get( NanSymbol("srcData") ) );
   if ( srcData->IsUndefined() || ! node::Buffer::HasInstance(srcData) ) {
     return THROW_ERROR_EXCEPTION("crop()'s 1st argument should have \"srcData\" key with a Buffer instance");
   }
 
-  Local<Number> pWidth = Local<Number>::Cast( obj->Get( String::NewSymbol("width") ) );
+  Local<Number> pWidth = Local<Number>::Cast( obj->Get( NanSymbol("width") ) );
   if ( pWidth->NumberValue() > 1 || pWidth->NumberValue() < 0) {
     return THROW_ERROR_EXCEPTION("\"width\" should be Number with the value between 0 and 1");
   }
 
-  Local<Number> pHeight = Local<Number>::Cast( obj->Get( String::NewSymbol("height") ) );
+  Local<Number> pHeight = Local<Number>::Cast( obj->Get( NanSymbol("height") ) );
   if ( pHeight->NumberValue() > 1 || pHeight->NumberValue() < 0) {
     return THROW_ERROR_EXCEPTION("\"height\" should be Number with the value between 0 and 1");
   }
 
-  Local<Number> pTop = Local<Number>::Cast( obj->Get( String::NewSymbol("top") ) );
+  Local<Number> pTop = Local<Number>::Cast( obj->Get( NanSymbol("top") ) );
   if ( pTop->NumberValue() > 1 || pTop->NumberValue() < 0) {
     return THROW_ERROR_EXCEPTION("\"top\" should be Number with the value between 0 and 1");
   }
 
-  Local<Number> pLeft = Local<Number>::Cast( obj->Get( String::NewSymbol("left") ) );
+  Local<Number> pLeft = Local<Number>::Cast( obj->Get( NanSymbol("left") ) );
   if ( pLeft->NumberValue() > 1 || pLeft->NumberValue() < 0) {
     return THROW_ERROR_EXCEPTION("\"left\" should be Number with the value between 0 and 1");
   }
 
-  int debug = obj->Get( String::NewSymbol("debug") )->Uint32Value();
+  int debug = NanUInt32OptionValue(obj, NanSymbol("debug"), 0);
   if (debug) printf( "debug: on\n" );
 
 
@@ -234,7 +141,7 @@ Handle<Value> Crop(const Arguments& args) {
   if (debug) printf("original width,height: %d, %d\n", (int) image.columns(), (int) image.rows());
 
 
-  Local<Value> formatValue = obj->Get( String::NewSymbol("format") );
+  Local<Value> formatValue = obj->Get( NanSymbol("format") );
   String::AsciiValue format( formatValue->ToString() );
   if ( ! formatValue->IsUndefined() ) {
     if (debug) printf( "format: %s\n", *format );
@@ -265,7 +172,7 @@ Handle<Value> Crop(const Arguments& args) {
   }
 
   //TODO remove quality settings and move them out into separate method
-  unsigned int quality = obj->Get( String::NewSymbol("quality") )->Uint32Value();
+  unsigned int quality = NanUInt32OptionValue(obj, NanSymbol("quality"), 0);
   if ( quality ) {
     if (debug) printf( "quality: %d\n", quality );
     image.quality( quality );
@@ -294,12 +201,12 @@ Handle<Value> Identify(const Arguments& args) {
   }
   Local<Object> obj = Local<Object>::Cast( args[ 0 ] );
 
-  Local<Object> srcData = Local<Object>::Cast( obj->Get( String::NewSymbol("srcData") ) );
+  Local<Object> srcData = Local<Object>::Cast( obj->Get( NanSymbol("srcData") ) );
   if ( srcData->IsUndefined() || ! node::Buffer::HasInstance(srcData) ) {
     return THROW_ERROR_EXCEPTION("identify()'s 1st argument should have \"srcData\" key with a Buffer instance");
   }
 
-  int debug = obj->Get( String::NewSymbol("debug") )->Uint32Value();
+  int debug = NanUInt32OptionValue(obj, NanSymbol("debug"), 0);
   if (debug) printf( "debug: on\n" );
 
   Magick::Blob srcBlob( node::Buffer::Data(srcData), node::Buffer::Length(srcData) );
@@ -321,10 +228,10 @@ Handle<Value> Identify(const Arguments& args) {
 
   Handle<Object> out = Object::New();
 
-  out->Set(String::NewSymbol("width"), Integer::New(image.columns()));
-  out->Set(String::NewSymbol("height"), Integer::New(image.rows()));
-  out->Set(String::NewSymbol("depth"), Integer::New(image.depth()));
-  out->Set(String::NewSymbol("format"), String::New(image.magick().c_str()));
+  out->Set(NanSymbol("width"), Integer::New(image.columns()));
+  out->Set(NanSymbol("height"), Integer::New(image.rows()));
+  out->Set(NanSymbol("depth"), Integer::New(image.depth()));
+  out->Set(NanSymbol("format"), String::New(image.magick().c_str()));
 
   return scope.Close( out );
 }
@@ -344,12 +251,12 @@ Handle<Value> Normalize(const Arguments& args) {
   }
   Local<Object> obj = Local<Object>::Cast( args[ 0 ] );
 
-  Local<Object> srcData = Local<Object>::Cast( obj->Get( String::NewSymbol("srcData") ) );
+  Local<Object> srcData = Local<Object>::Cast( obj->Get( NanSymbol("srcData") ) );
   if ( srcData->IsUndefined() || ! node::Buffer::HasInstance(srcData) ) {
     return THROW_ERROR_EXCEPTION("Normalize()'s 1st argument should have \"srcData\" key with a Buffer instance");
   }
 
-  int debug = obj->Get( String::NewSymbol("debug") )->Uint32Value();
+  int debug = NanUInt32OptionValue(obj, NanSymbol("debug"), 0);
   if (debug) printf( "debug: on\n" );
 
   Magick::Blob srcBlob( node::Buffer::Data(srcData), node::Buffer::Length(srcData) );
@@ -429,15 +336,15 @@ Handle<Value> QuantizeColors(const Arguments& args) {
   }
   Local<Object> obj = Local<Object>::Cast( args[ 0 ] );
 
-  Local<Object> srcData = Local<Object>::Cast( obj->Get( String::NewSymbol("srcData") ) );
+  Local<Object> srcData = Local<Object>::Cast( obj->Get( NanSymbol("srcData") ) );
   if ( srcData->IsUndefined() || ! node::Buffer::HasInstance(srcData) ) {
     return THROW_ERROR_EXCEPTION("quantizeColors()'s 1st argument should have \"srcData\" key with a Buffer instance");
   }
 
-  int colorsCount = obj->Get( String::NewSymbol("colors") )->Uint32Value();
+  int colorsCount = NanUInt32OptionValue(obj, NanSymbol("colors"), 0);
   if (!colorsCount) colorsCount = 5;
 
-  int debug = obj->Get( String::NewSymbol("debug") )->Uint32Value();
+  int debug = NanUInt32OptionValue(obj, NanSymbol("debug"), 0);
   if (debug) printf( "debug: on\n" );
 
   Magick::Blob srcBlob( node::Buffer::Data(srcData), node::Buffer::Length(srcData) );
@@ -504,13 +411,13 @@ Handle<Value> QuantizeColors(const Arguments& args) {
     int b = ((int) colors[x].blue) / 255;
     if (b > 255) b = 255;
 
-    color->Set(String::NewSymbol("r"), Integer::New(r));
-    color->Set(String::NewSymbol("g"), Integer::New(g));
-    color->Set(String::NewSymbol("b"), Integer::New(b));
+    color->Set(NanSymbol("r"), Integer::New(r));
+    color->Set(NanSymbol("g"), Integer::New(g));
+    color->Set(NanSymbol("b"), Integer::New(b));
 
     char hexcol[16];
     snprintf(hexcol, sizeof hexcol, "%02x%02x%02x", r, g, b);
-    color->Set(String::NewSymbol("hex"), String::New(hexcol));
+    color->Set(NanSymbol("hex"), String::New(hexcol));
 
     out->Set(x, color);
   }
@@ -521,11 +428,11 @@ Handle<Value> QuantizeColors(const Arguments& args) {
 }
 
 void init(Handle<Object> target) {
-  target->Set(String::NewSymbol("convert"), FunctionTemplate::New(Convert)->GetFunction());
-  target->Set(String::NewSymbol("crop"), FunctionTemplate::New(Crop)->GetFunction());
-  target->Set(String::NewSymbol("identify"), FunctionTemplate::New(Identify)->GetFunction());
-  target->Set(String::NewSymbol("normalize"), FunctionTemplate::New(Normalize)->GetFunction());
-  target->Set(String::NewSymbol("quantizeColors"), FunctionTemplate::New(QuantizeColors)->GetFunction());
+  target->Set(NanSymbol("convert"), FunctionTemplate::New(Convert)->GetFunction());
+  target->Set(NanSymbol("crop"), FunctionTemplate::New(Crop)->GetFunction());
+  target->Set(NanSymbol("identify"), FunctionTemplate::New(Identify)->GetFunction());
+  target->Set(NanSymbol("normalize"), FunctionTemplate::New(Normalize)->GetFunction());
+  target->Set(NanSymbol("quantizeColors"), FunctionTemplate::New(QuantizeColors)->GetFunction());
 }
 
 // There is no semi-colon after NODE_MODULE as it's not a function (see node.h).
