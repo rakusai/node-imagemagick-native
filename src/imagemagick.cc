@@ -37,7 +37,7 @@ NAN_METHOD(Convert) {
   }
 
   if (!args[1]->IsFunction()) {
-    THROW_ERROR_EXCEPTION("convert()'s 1st argument should be an object");
+    THROW_ERROR_EXCEPTION("convert()'s 1st argument should be a callback");
     NanReturnUndefined();
   }
 
@@ -94,108 +94,78 @@ NAN_METHOD(Convert) {
 //                  debug:       optional. 1 or 0
 //              }
 // TODO: convert into crop function
-Handle<Value> Crop(const Arguments& args) {
-  HandleScope scope;
+NAN_METHOD(Crop) {
+  NanScope();
   MagickCore::SetMagickResourceLimit(MagickCore::ThreadResource, 1);
 
-  if ( args.Length() != 1 ) {
-    return THROW_ERROR_EXCEPTION("crop() requires 1 (option) argument!");
+  if (args.Length() != 2) {
+    THROW_ERROR_EXCEPTION("convert() requires one option argument and one callback argument!");
+    NanReturnUndefined();
   }
-  if ( ! args[ 0 ]->IsObject() ) {
-    return THROW_ERROR_EXCEPTION("crop()'s 1st argument should be an object");
+
+  if (!args[0]->IsObject()) {
+    THROW_ERROR_EXCEPTION("convert()'s 1st argument should be an object");
+    NanReturnUndefined();
   }
-  Local<Object> obj = Local<Object>::Cast( args[ 0 ] );
+
+  if (!args[1]->IsFunction()) {
+    THROW_ERROR_EXCEPTION("convert()'s 1st argument should be a callback");
+    NanReturnUndefined();
+  }
+
+  Local<Object> obj = Local<Object>::Cast(args[0]);
+  NanCallback *callback = new NanCallback(args[1].As<Function>());
 
   Local<Object> srcData = Local<Object>::Cast( obj->Get( NanSymbol("srcData") ) );
-  if ( srcData->IsUndefined() || ! node::Buffer::HasInstance(srcData) ) {
-    return THROW_ERROR_EXCEPTION("crop()'s 1st argument should have \"srcData\" key with a Buffer instance");
+  if ( srcData->IsUndefined() || ! Buffer::HasInstance(srcData) ) {
+    THROW_ERROR_EXCEPTION("crop()'s 1st argument should have \"srcData\" key with a Buffer instance");
+    NanReturnUndefined();
   }
 
   Local<Number> pWidth = Local<Number>::Cast( obj->Get( NanSymbol("width") ) );
   if ( pWidth->NumberValue() > 1 || pWidth->NumberValue() < 0) {
-    return THROW_ERROR_EXCEPTION("\"width\" should be Number with the value between 0 and 1");
+    THROW_ERROR_EXCEPTION("\"width\" should be Number with the value between 0 and 1");
+    NanReturnUndefined();
   }
 
   Local<Number> pHeight = Local<Number>::Cast( obj->Get( NanSymbol("height") ) );
   if ( pHeight->NumberValue() > 1 || pHeight->NumberValue() < 0) {
-    return THROW_ERROR_EXCEPTION("\"height\" should be Number with the value between 0 and 1");
+    THROW_ERROR_EXCEPTION("\"height\" should be Number with the value between 0 and 1");
+    NanReturnUndefined();
   }
 
   Local<Number> pTop = Local<Number>::Cast( obj->Get( NanSymbol("top") ) );
   if ( pTop->NumberValue() > 1 || pTop->NumberValue() < 0) {
-    return THROW_ERROR_EXCEPTION("\"top\" should be Number with the value between 0 and 1");
+    THROW_ERROR_EXCEPTION("\"top\" should be Number with the value between 0 and 1");
+    NanReturnUndefined();
   }
 
   Local<Number> pLeft = Local<Number>::Cast( obj->Get( NanSymbol("left") ) );
   if ( pLeft->NumberValue() > 1 || pLeft->NumberValue() < 0) {
-    return THROW_ERROR_EXCEPTION("\"left\" should be Number with the value between 0 and 1");
+    THROW_ERROR_EXCEPTION("\"left\" should be Number with the value between 0 and 1");
+    NanReturnUndefined();
   }
 
   int debug = NanUInt32OptionValue(obj, NanSymbol("debug"), 0);
   if (debug) printf( "debug: on\n" );
 
+  Magick::Blob srcBlob(Buffer::Data(srcData), Buffer::Length(srcData));
 
-  Magick::Blob srcBlob( node::Buffer::Data(srcData), node::Buffer::Length(srcData) );
-
-  Magick::Image image;
-  try {
-    image.read( srcBlob );
-  }
-  catch (std::exception& err) {
-    std::string message = "image.read failed with error: ";
-    message            += err.what();
-    return THROW_ERROR_EXCEPTION(message.c_str());
-  }
-  catch (...) {
-    return THROW_ERROR_EXCEPTION("unhandled error");
+  if (pTop->IsUndefined() && pLeft->IsUndefined() && pWidth->IsUndefined() && pHeight->IsUndefined()) {
+    THROW_ERROR_EXCEPTION("At least one of the following params should be defined: width, height, top, left");
+    NanReturnUndefined();
   }
 
-  if (debug) printf("original width,height: %d, %d\n", (int) image.columns(), (int) image.rows());
-
-
-  Local<Value> formatValue = obj->Get( NanSymbol("format") );
-  String::AsciiValue format( formatValue->ToString() );
-  if ( ! formatValue->IsUndefined() ) {
-    if (debug) printf( "format: %s\n", *format );
-    image.magick( *format );
-  }
-
-  if ( !(pTop->IsUndefined() && pLeft->IsUndefined() && pWidth->IsUndefined() && pHeight->IsUndefined()) ) {
-
-    unsigned int width = pWidth->IsUndefined() ? image.columns():pWidth->NumberValue()*image.columns();
-    if (debug) printf( "width: %d\n", width );
-
-    unsigned int height = pHeight->IsUndefined() ? image.rows():pHeight->NumberValue()*image.rows();
-    if (debug) printf( "height: %d\n", height );
-
-    unsigned int top = pTop->IsUndefined() ? 0:pTop->NumberValue()*image.rows();
-    if (debug) printf( "top: %d\n", top );
-
-    unsigned int left = pLeft->IsUndefined() ? 0:pLeft->NumberValue()*image.columns();
-    if (debug) printf( "left: %d\n", left );
-
-    // limit canvas size to cropGeometry
-    if (debug) printf("crop to: %d, %d, %d, %d\n", width, height, left, top);
-    Magick::Geometry cropGeometry( width, height, left, top, 0, 0 );
-
-    image.crop(cropGeometry);
-
-    if (debug) printf( "cropped to: %d, %d\n", (int)image.columns(), (int)image.rows() );
-  }
-
-  //TODO remove quality settings and move them out into separate method
   unsigned int quality = NanUInt32OptionValue(obj, NanSymbol("quality"), 0);
-  if ( quality ) {
-    if (debug) printf( "quality: %d\n", quality );
-    image.quality( quality );
-  }
 
-  Magick::Blob dstBlob;
-  image.write( &dstBlob );
+  Local<Object> fmt = Local<Object>::Cast(obj->Get(NanSymbol("format")));
+  char *format = NULL;
+  size_t format_cnt;
+  if (!fmt->IsUndefined())
+    format = NanCString(obj->Get(NanSymbol("format")), &format_cnt);
 
-  node::Buffer* retBuffer = node::Buffer::New( dstBlob.length() );
-  memcpy( node::Buffer::Data( retBuffer->handle_ ), dstBlob.data(), dstBlob.length() );
-  return scope.Close( retBuffer->handle_ );
+  NanAsyncQueueWorker(new CropWorker(callback, debug, srcBlob, pWidth->NumberValue(), pHeight->NumberValue(), pTop->NumberValue(), pLeft->NumberValue(), quality, format));
+  NanReturnUndefined();
 }
 
 // input

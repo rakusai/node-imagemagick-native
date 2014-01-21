@@ -14,7 +14,6 @@ ConvertWorker::~ConvertWorker() {
     delete[] format;
 };
 void ConvertWorker::Execute() {
-  printf("starting async work");
   Magick::Image image;
   try {
     image.read(srcBlob);
@@ -120,6 +119,74 @@ void ConvertWorker::Execute() {
   image.write(&dstBlob);
 };
 void ConvertWorker::HandleOKCallback() {
+  NanScope();
+  Local<v8::Value> retBuffer = NanNewBufferHandle((char*)dstBlob.data(), dstBlob.length());
+  Local<Value> argv[] = {Local<Value>::New(Undefined()), retBuffer};
+  callback->Call(2, argv);
+};
+///////////////////////////////////////////////////////////////////////////////////////////////
+CropWorker::CropWorker(NanCallback *callback, int debug, Magick::Blob srcBlob, double pWidth, double pHeight, double pTop, double pLeft, unsigned int quality, const char *format):NanAsyncWorker(callback) {
+  this->debug   = debug;
+  this->srcBlob = srcBlob;
+  this->pWidth  = pWidth;
+  this->pHeight = pHeight;
+  this->pTop    = pTop;
+  this->pLeft   = pLeft;
+  this->quality = quality;
+  this->format  = format;
+};
+CropWorker::~CropWorker() {
+  if (format)
+    delete[] format;
+};
+void CropWorker::Execute() {
+  Magick::Image image;
+  try {
+    image.read(srcBlob);
+  } catch (std::exception& err) {
+    std::string message = "image.read failed with error: ";
+    message            += err.what();
+    this->errmsg = message.c_str();
+    return;
+  } catch (...) {
+    this->errmsg = "unhandled error";
+    return;
+  }
+
+  if (format)
+    image.magick(format);
+  if (debug)
+    printf( "format: %s\n", format );
+
+  unsigned int width = pWidth*image.columns();
+  if (debug) printf( "width: %d\n", width );
+
+  unsigned int height = pHeight*image.rows();
+  if (debug) printf( "height: %d\n", height );
+
+  unsigned int top = pTop*image.rows();
+  if (debug) printf( "top: %d\n", top );
+
+  unsigned int left = pLeft*image.columns();
+  if (debug) printf( "left: %d\n", left );
+
+  // limit canvas size to cropGeometry
+  if (debug) printf("crop to: %d, %d, %d, %d\n", width, height, left, top);
+  Magick::Geometry cropGeometry( width, height, left, top, 0, 0 );
+
+  image.crop(cropGeometry);
+
+  if (debug) printf( "cropped to: %d, %d\n", (int)image.columns(), (int)image.rows() );
+
+  if (quality) {
+    if (debug)
+      printf("quality: %d\n", quality);
+    image.quality(quality);
+  }
+
+  image.write( &dstBlob );
+};
+void CropWorker::HandleOKCallback() {
   NanScope();
   Local<v8::Value> retBuffer = NanNewBufferHandle((char*)dstBlob.data(), dstBlob.length());
   Local<Value> argv[] = {Local<Value>::New(Undefined()), retBuffer};

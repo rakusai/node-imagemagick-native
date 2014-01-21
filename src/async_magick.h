@@ -22,17 +22,25 @@ class ConvertWorker:public NanAsyncWorker {
 
 class CropWorker:public NanAsyncWorker {
   public:
-    CropWorker(NanCallback *callback):NanAsyncWorker(callback) {
-    };
+    CropWorker(NanCallback *callback, int debug, Magick::Blob srcBlob, double pWidth, double pHeight, double pTop, double pLeft, unsigned int quality, const char *format);
     ~CropWorker();
     void Execute();
     void HandleOKCallback();
+  private:
+    int debug;
+    Magick::Blob srcBlob;
+    Magick::Blob dstBlob;
+    double pWidth;
+    double pHeight;
+    double pTop;
+    double pLeft;
+    unsigned int quality;
+    const char *format;
 };
 
 class IdentifyWorker:public NanAsyncWorker {
   public:
-    IdentifyWorker(NanCallback *callback):NanAsyncWorker(callback) {
-    };
+    IdentifyWorker(NanCallback *callback);
     ~IdentifyWorker();
     void Execute();
     void HandleOKCallback();
@@ -40,8 +48,7 @@ class IdentifyWorker:public NanAsyncWorker {
 
 class NormalizeWorker:public NanAsyncWorker {
   public:
-    NormalizeWorker(NanCallback *callback):NanAsyncWorker(callback) {
-    };
+    NormalizeWorker(NanCallback *callback);
     ~NormalizeWorker();
     void Execute();
     void HandleOKCallback();
@@ -49,8 +56,7 @@ class NormalizeWorker:public NanAsyncWorker {
 
 class QuantizeColorsWorker:public NanAsyncWorker {
   public:
-    QuantizeColorsWorker(NanCallback *callback):NanAsyncWorker(callback) {
-    };
+    QuantizeColorsWorker(NanCallback *callback);
     ~QuantizeColorsWorker();
     void Execute();
     void HandleOKCallback();

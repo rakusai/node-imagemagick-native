@@ -14,7 +14,17 @@ fs.readFile(path.join(__dirname, 'test', 'test.jpg'), function (e, file) {
     log('step 2');
     if (e)
       throw e;
-    fs.writeFile(path.join(__dirname, 'test.out.jpg'), res, function (e) {
+    fs.writeFile(path.join(__dirname, 'test.convert.jpg'), res, function (e) {
+      log('step 3');
+      if (e)
+        throw e;
+    });
+  });
+  im.crop({srcData: file, width: 0.5, height: 0.5, top: 0.5, left: 0.5, debug: 1}, function (e, res) {
+    log('step 2');
+    if (e)
+      throw e;
+    fs.writeFile(path.join(__dirname, 'test.crop.jpg'), res, function (e) {
       log('step 3');
       if (e)
         throw e;
