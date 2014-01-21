@@ -174,24 +174,38 @@ NAN_METHOD(Crop) {
 //                  srcData:        required. Buffer with binary image data
 //                  debug:          optional. 1 or 0
 //              }
-Handle<Value> Identify(const Arguments& args) {
-  HandleScope scope;
+NAN_METHOD(Identify) {
+  NanScope();
   MagickCore::SetMagickResourceLimit(MagickCore::ThreadResource, 1);
 
-  if ( args.Length() != 1 ) {
-    return THROW_ERROR_EXCEPTION("identify() requires 1 (option) argument!");
+  if (args.Length() != 2) {
+    THROW_ERROR_EXCEPTION("normalize() requires one option argument and one callback argument!");
+    NanReturnUndefined();
   }
-  Local<Object> obj = Local<Object>::Cast( args[ 0 ] );
+
+  if (!args[0]->IsObject()) {
+    THROW_ERROR_EXCEPTION("normalize()'s 1st argument should be an object");
+    NanReturnUndefined();
+  }
+
+  if (!args[1]->IsFunction()) {
+    THROW_ERROR_EXCEPTION("normalize()'s 2nd argument should be a callback");
+    NanReturnUndefined();
+  }
+
+  Local<Object> obj = Local<Object>::Cast(args[0]);
+  NanCallback *callback = new NanCallback(args[1].As<Function>());
 
   Local<Object> srcData = Local<Object>::Cast( obj->Get( NanSymbol("srcData") ) );
-  if ( srcData->IsUndefined() || ! node::Buffer::HasInstance(srcData) ) {
-    return THROW_ERROR_EXCEPTION("identify()'s 1st argument should have \"srcData\" key with a Buffer instance");
+  if ( srcData->IsUndefined() || ! Buffer::HasInstance(srcData) ) {
+    THROW_ERROR_EXCEPTION("normalize()'s 1st argument should have \"srcData\" key with a Buffer instance");
+    NanReturnUndefined();
   }
 
   int debug = NanUInt32OptionValue(obj, NanSymbol("debug"), 0);
   if (debug) printf( "debug: on\n" );
 
-  Magick::Blob srcBlob( node::Buffer::Data(srcData), node::Buffer::Length(srcData) );
+  Magick::Blob srcBlob( Buffer::Data(srcData), Buffer::Length(srcData) );
 
   Magick::Image image;
   try {
@@ -208,14 +222,16 @@ Handle<Value> Identify(const Arguments& args) {
 
   if (debug) printf("original width,height: %d, %d\n", (int) image.columns(), (int) image.rows());
 
-  Handle<Object> out = Object::New();
+  Local<Object> out = Object::New();
 
   out->Set(NanSymbol("width"), Integer::New(image.columns()));
   out->Set(NanSymbol("height"), Integer::New(image.rows()));
   out->Set(NanSymbol("depth"), Integer::New(image.depth()));
   out->Set(NanSymbol("format"), String::New(image.magick().c_str()));
 
-  return scope.Close( out );
+  Local<Value> argv[] = {Local<Value>::New(Undefined()), out};
+  callback->Call(2, argv);
+  NanReturnUndefined();
 }
 
 // input
@@ -255,7 +271,7 @@ NAN_METHOD(Normalize) {
   int debug = NanUInt32OptionValue(obj, NanSymbol("debug"), 0);
   if (debug) printf( "debug: on\n" );
 
-  Magick::Blob srcBlob( node::Buffer::Data(srcData), node::Buffer::Length(srcData) );
+  Magick::Blob srcBlob(Buffer::Data(srcData), Buffer::Length(srcData));
 
   NanAsyncQueueWorker(new NormalizeWorker(callback, debug, srcBlob));
   NanReturnUndefined();
