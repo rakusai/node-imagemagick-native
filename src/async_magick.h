@@ -8,7 +8,7 @@ class ConvertWorker:public NanAsyncWorker {
     ConvertWorker(NanCallback *callback, int debug, Magick::Blob srcBlob, unsigned int width, unsigned int height, unsigned int quality, const char *format, const char *resizeStyle);
     ~ConvertWorker();
     void Execute();
-    void HandleOkCallback();
+    void HandleOKCallback();
   private:
     int debug;
     Magick::Blob srcBlob;
@@ -26,7 +26,7 @@ class CropWorker:public NanAsyncWorker {
     };
     ~CropWorker();
     void Execute();
-    void HandleOkCallback();
+    void HandleOKCallback();
 };
 
 class IdentifyWorker:public NanAsyncWorker {
@@ -35,7 +35,7 @@ class IdentifyWorker:public NanAsyncWorker {
     };
     ~IdentifyWorker();
     void Execute();
-    void HandleOkCallback();
+    void HandleOKCallback();
 };
 
 class NormalizeWorker:public NanAsyncWorker {
@@ -44,7 +44,7 @@ class NormalizeWorker:public NanAsyncWorker {
     };
     ~NormalizeWorker();
     void Execute();
-    void HandleOkCallback();
+    void HandleOKCallback();
 };
 
 class QuantizeColorsWorker:public NanAsyncWorker {
@@ -53,5 +53,5 @@ class QuantizeColorsWorker:public NanAsyncWorker {
     };
     ~QuantizeColorsWorker();
     void Execute();
-    void HandleOkCallback();
+    void HandleOKCallback();
 };

@@ -21,31 +21,39 @@
 //                  format:      optional. one of http://www.imagemagick.org/script/formats.php ex: "JPEG"
 //                  debug:       optional. 1 or 0
 //              }
+//
 NAN_METHOD(Convert) {
   NanScope();
   MagickCore::SetMagickResourceLimit(MagickCore::ThreadResource, 1);
 
-  if ( args.Length() != 2 ) {
-    return THROW_ERROR_EXCEPTION("convert() requires one option argument and one callback argument!");
+  if (args.Length() != 2) {
+    THROW_ERROR_EXCEPTION("convert() requires one option argument and one callback argument!");
+    NanReturnUndefined();
   }
-  if ( ! args[0]->IsObject() ) {
-    return THROW_ERROR_EXCEPTION("convert()'s 1st argument should be an object");
+
+  if (!args[0]->IsObject()) {
+    THROW_ERROR_EXCEPTION("convert()'s 1st argument should be an object");
+    NanReturnUndefined();
   }
-  if ( ! args[1]->IsFunction() ) {
-    return THROW_ERROR_EXCEPTION("convert()'s 1st argument should be an object");
+
+  if (!args[1]->IsFunction()) {
+    THROW_ERROR_EXCEPTION("convert()'s 1st argument should be an object");
+    NanReturnUndefined();
   }
+
   Local<Object> obj = Local<Object>::Cast(args[0]);
   NanCallback *callback = new NanCallback(args[1].As<Function>());
 
-  Local<Object> srcData = Local<Object>::Cast( obj->Get( NanSymbol("srcData") ) );
+  Local<Object> srcData = Local<Object>::Cast(obj->Get(NanSymbol("srcData")));
   if ( srcData->IsUndefined() || ! node::Buffer::HasInstance(srcData) ) {
-    return THROW_ERROR_EXCEPTION("convert()'s 1st argument should have \"srcData\" key with a Buffer instance");
+    THROW_ERROR_EXCEPTION("convert()'s 1st argument should have \"srcData\" key with a Buffer instance");
+    NanReturnUndefined();
   }
 
   int debug = NanUInt32OptionValue(obj, NanSymbol("debug"), 0);
   if (debug) printf( "debug: on\n" );
 
-  Magick::Blob srcBlob( Buffer::Data(srcData), Buffer::Length(srcData) );
+  Magick::Blob srcBlob(Buffer::Data(srcData), Buffer::Length(srcData));
 
   unsigned int width = NanUInt32OptionValue(obj, NanSymbol("width"), 0);
   if (debug) printf( "width: %d\n", width );
@@ -53,17 +61,21 @@ NAN_METHOD(Convert) {
   unsigned int height = NanUInt32OptionValue(obj, NanSymbol("height"), 0);
   if (debug) printf( "height: %d\n", height );
 
-  Local<Value> resizeStyleValue = obj->Get( NanSymbol("resizeStyle") );
+  Local<Value> resizeStyleValue = obj->Get(NanSymbol("resizeStyle"));
   const char* resizeStyle = "aspectfill";
-  String::AsciiValue resizeStyleAsciiValue( resizeStyleValue->ToString() );
-  if ( ! resizeStyleValue->IsUndefined() ) {
+  String::AsciiValue resizeStyleAsciiValue(resizeStyleValue->ToString());
+  if (!resizeStyleValue->IsUndefined()) {
     resizeStyle = *resizeStyleAsciiValue;
   }
-  if (debug) printf( "resizeStyle: %s\n", resizeStyle );
+  if (debug) printf("resizeStyle: %s\n", resizeStyle);
 
   unsigned int quality = NanUInt32OptionValue(obj, NanSymbol("quality"), 0);
 
-  const char *format = NanFromV8String(obj->Get( NanSymbol("format")));
+  Local<Object> fmt = Local<Object>::Cast(obj->Get(NanSymbol("format")));
+  char *format = NULL;
+  size_t format_cnt;
+  if (!fmt->IsUndefined())
+    format = NanCString(obj->Get(NanSymbol("format")), &format_cnt);
 
   NanAsyncQueueWorker(new ConvertWorker(callback, debug, srcBlob, width, height, quality, format, resizeStyle));
   NanReturnUndefined();

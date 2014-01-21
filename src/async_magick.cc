@@ -9,8 +9,12 @@ ConvertWorker::ConvertWorker(NanCallback *callback, int debug, Magick::Blob srcB
   this->format      = format;
   this->resizeStyle = resizeStyle;
 };
-ConvertWorker::~ConvertWorker() {};
+ConvertWorker::~ConvertWorker() {
+  if (format)
+    delete[] format;
+};
 void ConvertWorker::Execute() {
+  printf("starting async work");
   Magick::Image image;
   try {
     image.read(srcBlob);
@@ -23,6 +27,11 @@ void ConvertWorker::Execute() {
     this->errmsg = "unhandled error";
     return;
   }
+
+  if (format)
+    image.magick(format);
+  if (debug)
+    printf( "format: %s\n", format );
 
   if (debug)
     printf("original width,height: %d, %d\n", (int) image.columns(), (int) image.rows());
@@ -72,25 +81,27 @@ void ConvertWorker::Execute() {
         printf( "crop to: %d, %d, %d, %d\n", width, height, xoffset, yoffset );
       Magick::Geometry cropGeometry( width, height, xoffset, yoffset, 0, 0 );
 
-      Magick::Color transparent( "white" );
-      if (strcmp(format, "PNG" ) == 0) {
+      Magick::Color transparent("white");
+      if (format) {
         // make background transparent for PNG
         // JPEG background becomes black if set transparent here
-        transparent.alpha( 1. );
+        transparent.alpha(1.);
       }
       image.extent( cropGeometry, transparent );
-    } else if ( strcmp ( resizeStyle, "aspectfit" ) == 0 ) {
+    } else if (strcmp (resizeStyle, "aspectfit") == 0 ) {
       // keep aspect ratio, get the maximum image which fits inside specified size
-      char geometryString[ 32 ];
+      char geometryString[32];
       sprintf( geometryString, "%dx%d", width, height );
-      if (debug) printf( "resize to: %s\n", geometryString );
-      image.resize( geometryString );
-    } else if ( strcmp ( resizeStyle, "fill" ) == 0 ) {
+      if (debug)
+        printf( "resize to: %s\n", geometryString );
+      image.resize(geometryString);
+    } else if (strcmp (resizeStyle, "fill") == 0) {
       // change aspect ratio and fill specified size
-      char geometryString[ 32 ];
+      char geometryString[32];
       sprintf( geometryString, "%dx%d!", width, height );
-      if (debug) printf( "resize to: %s\n", geometryString );
-      image.resize( geometryString );
+      if (debug)
+        printf( "resize to: %s\n", geometryString );
+      image.resize(geometryString);
     } else {
       this->errmsg = "resizeStyle not supported";
       return;
@@ -106,15 +117,9 @@ void ConvertWorker::Execute() {
     image.quality(quality);
   }
 
-  if (this->format) {
-    if (debug)
-      printf( "format: %s\n", format );
-    image.magick(format);
-  }
   image.write(&dstBlob);
-
 };
-void ConvertWorker::HandleOkCallback() {
+void ConvertWorker::HandleOKCallback() {
   NanScope();
   Local<v8::Value> retBuffer = NanNewBufferHandle((char*)dstBlob.data(), dstBlob.length());
   Local<Value> argv[] = {Local<Value>::New(Undefined()), retBuffer};
