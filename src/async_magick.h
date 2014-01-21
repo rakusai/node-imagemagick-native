@@ -38,20 +38,16 @@ class CropWorker:public NanAsyncWorker {
     const char *format;
 };
 
-class IdentifyWorker:public NanAsyncWorker {
-  public:
-    IdentifyWorker(NanCallback *callback);
-    ~IdentifyWorker();
-    void Execute();
-    void HandleOKCallback();
-};
-
 class NormalizeWorker:public NanAsyncWorker {
   public:
-    NormalizeWorker(NanCallback *callback);
+    NormalizeWorker(NanCallback *callback, int debug, Magick::Blob srcBlob);
     ~NormalizeWorker();
     void Execute();
     void HandleOKCallback();
+  private:
+    int debug;
+    Magick::Blob srcBlob;
+    Magick::Blob dstBlob;
 };
 
 class QuantizeColorsWorker:public NanAsyncWorker {

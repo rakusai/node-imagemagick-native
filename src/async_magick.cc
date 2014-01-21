@@ -192,3 +192,66 @@ void CropWorker::HandleOKCallback() {
   Local<Value> argv[] = {Local<Value>::New(Undefined()), retBuffer};
   callback->Call(2, argv);
 };
+///////////////////////////////////////////////////////////////////////////////////////////////////
+NormalizeWorker::NormalizeWorker(NanCallback *callback, int debug, Magick::Blob srcBlob):NanAsyncWorker(callback) {
+  this->debug   = debug;
+  this->srcBlob = srcBlob;
+}
+NormalizeWorker::~NormalizeWorker() {};
+void NormalizeWorker::Execute() {
+  Magick::Image image;
+  try {
+    image.read(srcBlob);
+  } catch (std::exception& err) {
+    std::string message = "image.read failed with error: ";
+    message            += err.what();
+    this->errmsg = message.c_str();
+    return;
+  } catch (...) {
+    this->errmsg = "unhandled error";
+    return;
+  }
+
+  int orientation = atoi(image.attribute("EXIF:Orientation").c_str());
+  if (debug) printf("orientation: %d\n", orientation);
+
+  switch (orientation) {
+    case 1:
+      // no need to do anything
+      break;
+    case 2:
+      image.flip();
+      break;
+    case 3:
+      image.rotate(180);
+      break;
+    case 4:
+      image.flop();
+      break;
+    case 5:
+      image.rotate(90);
+      image.flip();
+      break;
+    case 6:
+      image.rotate(90);
+      break;
+    case 7:
+      image.rotate(-90);
+      image.flip();
+      break;
+    case 8:
+      image.rotate(-90);
+      break;
+    default:
+      if (debug) printf("orientation is missing. skipping");
+      return;
+  }
+  image.strip();
+  image.write(&dstBlob);
+};
+void NormalizeWorker::HandleOKCallback() {
+  NanScope();
+  Local<v8::Value> retBuffer = NanNewBufferHandle((char*)dstBlob.data(), dstBlob.length());
+  Local<Value> argv[] = {Local<Value>::New(Undefined()), retBuffer};
+  callback->Call(2, argv);
+};
