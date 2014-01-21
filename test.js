@@ -30,4 +30,14 @@ fs.readFile(path.join(__dirname, 'test', 'test.jpg'), function (e, file) {
         throw e;
     });
   });
+  im.normalize({srcData: file, debug: 1}, function (e, res) {
+    log('step 2');
+    if (e)
+      throw e;
+    fs.writeFile(path.join(__dirname, 'test.norm.jpg'), res, function (e) {
+      log('step 3');
+      if (e)
+        throw e;
+    });
+  });
 });
