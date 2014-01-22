@@ -8,10 +8,13 @@ ConvertWorker::ConvertWorker(NanCallback *callback, int debug, Magick::Blob srcB
   this->quality     = quality;
   this->format      = format;
   this->resizeStyle = resizeStyle;
+  if (debug) printf("resizeStyle: %s\n", resizeStyle);
 };
 ConvertWorker::~ConvertWorker() {
   if (format)
     delete[] format;
+  if (resizeStyle)
+    delete[] resizeStyle;
 };
 void ConvertWorker::Execute() {
   Magick::Image image;

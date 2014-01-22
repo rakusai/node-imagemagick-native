@@ -37,7 +37,7 @@ NAN_METHOD(Convert) {
   }
 
   if (!args[1]->IsFunction()) {
-    THROW_ERROR_EXCEPTION("convert()'s 1st argument should be a callback");
+    THROW_ERROR_EXCEPTION("convert()'s 2nd argument should be a callback");
     NanReturnUndefined();
   }
 
@@ -45,7 +45,7 @@ NAN_METHOD(Convert) {
   NanCallback *callback = new NanCallback(args[1].As<Function>());
 
   Local<Object> srcData = Local<Object>::Cast(obj->Get(NanSymbol("srcData")));
-  if ( srcData->IsUndefined() || ! node::Buffer::HasInstance(srcData) ) {
+  if ( srcData->IsUndefined() || ! Buffer::HasInstance(srcData) ) {
     THROW_ERROR_EXCEPTION("convert()'s 1st argument should have \"srcData\" key with a Buffer instance");
     NanReturnUndefined();
   }
@@ -62,10 +62,13 @@ NAN_METHOD(Convert) {
   if (debug) printf( "height: %d\n", height );
 
   Local<Value> resizeStyleValue = obj->Get(NanSymbol("resizeStyle"));
-  const char* resizeStyle = "aspectfill";
+  const char* resizeStyle = NULL;
   String::AsciiValue resizeStyleAsciiValue(resizeStyleValue->ToString());
   if (!resizeStyleValue->IsUndefined()) {
-    resizeStyle = *resizeStyleAsciiValue;
+    resizeStyle = static_cast<const char *>(malloc(resizeStyleAsciiValue.length() + 1));
+    strcpy((char *) resizeStyle, (char *) *resizeStyleAsciiValue);
+  } else {
+    resizeStyle = "aspectfill";
   }
   if (debug) printf("resizeStyle: %s\n", resizeStyle);
 
