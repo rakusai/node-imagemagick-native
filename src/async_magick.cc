@@ -11,10 +11,10 @@ ConvertWorker::ConvertWorker(NanCallback *callback, int debug, Magick::Blob srcB
   if (debug) printf("resizeStyle: %s\n", resizeStyle);
 };
 ConvertWorker::~ConvertWorker() {
-  // if (format)
-  //   delete[] format;
-  // if (resizeStyle)
-  //   delete[] resizeStyle;
+  if (format)
+    delete[] format;
+  if (resizeStyle)
+    delete[] resizeStyle;
 };
 void ConvertWorker::Execute() {
   Magick::Image image;
@@ -139,8 +139,8 @@ CropWorker::CropWorker(NanCallback *callback, int debug, Magick::Blob srcBlob, d
   this->format  = format;
 };
 CropWorker::~CropWorker() {
-  // if (format)
-  //   delete[] format;
+  if (format)
+    delete[] format;
 };
 void CropWorker::Execute() {
   Magick::Image image;
@@ -247,7 +247,6 @@ void NormalizeWorker::Execute() {
       break;
     default:
       if (debug) printf("orientation is missing. skipping");
-      return;
   }
   image.strip();
   image.write(&dstBlob);
