@@ -179,6 +179,7 @@ NAN_METHOD(Crop) {
 //              }
 NAN_METHOD(Identify) {
   NanScope();
+  Magick::InitializeMagick(NULL);
   MagickCore::SetMagickResourceLimit(MagickCore::ThreadResource, 1);
 
   if (args.Length() != 2) {

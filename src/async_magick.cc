@@ -17,6 +17,7 @@ ConvertWorker::~ConvertWorker() {
     delete[] resizeStyle;
 };
 void ConvertWorker::Execute() {
+  Magick::InitializeMagick(NULL);
   Magick::Image image;
   try {
     image.read(srcBlob);
@@ -143,6 +144,7 @@ CropWorker::~CropWorker() {
     delete[] format;
 };
 void CropWorker::Execute() {
+  Magick::InitializeMagick(NULL);
   Magick::Image image;
   try {
     image.read(srcBlob);
@@ -202,6 +204,7 @@ NormalizeWorker::NormalizeWorker(NanCallback *callback, int debug, Magick::Blob 
 }
 NormalizeWorker::~NormalizeWorker() {};
 void NormalizeWorker::Execute() {
+  Magick::InitializeMagick(NULL);
   Magick::Image image;
   try {
     image.read(srcBlob);
