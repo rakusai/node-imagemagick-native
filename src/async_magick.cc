@@ -1,3 +1,7 @@
+#ifndef BUILDING_NODE_EXTENSION
+#define BUILDING_NODE_EXTENSION
+#endif  // BUILDING_NODE_EXTENSION
+
 #include "async_magick.h"
 
 ConvertWorker::ConvertWorker(NanCallback *callback, int debug, Magick::Blob srcBlob, unsigned int width, unsigned int height, unsigned int quality, const char *format, const char *resizeStyle):NanAsyncWorker(callback) {

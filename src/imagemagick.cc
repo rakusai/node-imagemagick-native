@@ -24,7 +24,7 @@
 //
 NAN_METHOD(Convert) {
   NanScope();
-  // Magick::InitializeMagick(NULL);
+  Magick::InitializeMagick(NULL);
   MagickCore::SetMagickResourceLimit(MagickCore::ThreadResource, 1);
 
   if (args.Length() != 2) {
@@ -56,10 +56,10 @@ NAN_METHOD(Convert) {
 
   Magick::Blob srcBlob(Buffer::Data(srcData), Buffer::Length(srcData));
 
-  unsigned int width = NanUInt32OptionValue(obj, NanSymbol("width"), 0);
+  unsigned int width = obj->Get(NanSymbol("width"))->Uint32Value();
   if (debug) printf( "width: %d\n", width );
 
-  unsigned int height = NanUInt32OptionValue(obj, NanSymbol("height"), 0);
+  unsigned int height = obj->Get(NanSymbol("height"))->Uint32Value();
   if (debug) printf( "height: %d\n", height );
 
   Local<Value> resizeStyleValue = obj->Get(NanSymbol("resizeStyle"));
@@ -100,7 +100,7 @@ NAN_METHOD(Convert) {
 // TODO: convert into crop function
 NAN_METHOD(Crop) {
   NanScope();
-  // Magick::InitializeMagick(NULL);
+  Magick::InitializeMagick(NULL);
   MagickCore::SetMagickResourceLimit(MagickCore::ThreadResource, 1);
 
   if (args.Length() != 2) {
@@ -181,7 +181,7 @@ NAN_METHOD(Crop) {
 //              }
 NAN_METHOD(Identify) {
   NanScope();
-  // Magick::InitializeMagick(NULL);
+  Magick::InitializeMagick(NULL);
   MagickCore::SetMagickResourceLimit(MagickCore::ThreadResource, 1);
 
   if (args.Length() != 2) {
@@ -248,7 +248,7 @@ NAN_METHOD(Identify) {
 //              }
 NAN_METHOD(Normalize) {
   NanScope();
-  // Magick::InitializeMagick(NULL);
+  Magick::InitializeMagick(NULL);
   MagickCore::SetMagickResourceLimit(MagickCore::ThreadResource, 1);
 
   if (args.Length() != 2) {
