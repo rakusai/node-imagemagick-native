@@ -73,7 +73,7 @@ NAN_METHOD(Convert) {
   }
   if (debug) printf("resizeStyle: %s\n", resizeStyle);
 
-  unsigned int quality = NanUInt32OptionValue(obj, NanSymbol("quality"), 0);
+  unsigned int quality = obj->Get(NanSymbol("quality"))->Uint32Value();
 
   Local<Object> fmt = Local<Object>::Cast(obj->Get(NanSymbol("format")));
   char *format = NULL;
@@ -161,7 +161,7 @@ NAN_METHOD(Crop) {
     NanReturnUndefined();
   }
 
-  unsigned int quality = NanUInt32OptionValue(obj, NanSymbol("quality"), 0);
+  unsigned int quality = obj->Get(NanSymbol("quality"))->Uint32Value();
 
   Local<Object> fmt = Local<Object>::Cast(obj->Get(NanSymbol("format")));
   char *format = NULL;
