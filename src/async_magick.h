@@ -20,6 +20,23 @@ class ConvertWorker:public NanAsyncWorker {
     const char *resizeStyle;
 };
 
+class ConvertFileWorker:public NanAsyncWorker {
+  public:
+    ConvertFileWorker(NanCallback *callback, int debug, const char *srcPath, const char *outPath, unsigned int width, unsigned int height, unsigned int quality, const char *format, const char *resizeStyle);
+    ~ConvertFileWorker();
+    void Execute();
+    void HandleOKCallback();
+  private:
+    int debug;
+    const char *srcPath;
+    const char *outPath;
+    unsigned int width;
+    unsigned int height;
+    unsigned int quality;
+    const char *format;
+    const char *resizeStyle;
+};
+
 class CropWorker:public NanAsyncWorker {
   public:
     CropWorker(NanCallback *callback, int debug, Magick::Blob srcBlob, double pWidth, double pHeight, double pTop, double pLeft, unsigned int quality, const char *format);

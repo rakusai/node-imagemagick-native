@@ -50,11 +50,10 @@ NAN_METHOD(Convert) {
     THROW_ERROR_EXCEPTION("convert()'s 1st argument should have \"srcData\" key with a Buffer instance");
     NanReturnUndefined();
   }
+  Magick::Blob srcBlob(Buffer::Data(srcData), Buffer::Length(srcData));
 
   int debug = NanUInt32OptionValue(obj, NanSymbol("debug"), 0);
   if (debug) printf( "debug: on\n" );
-
-  Magick::Blob srcBlob(Buffer::Data(srcData), Buffer::Length(srcData));
 
   unsigned int width = obj->Get(NanSymbol("width"))->Uint32Value();
   if (debug) printf( "width: %d\n", width );
@@ -82,6 +81,94 @@ NAN_METHOD(Convert) {
     format = NanCString(obj->Get(NanSymbol("format")), &format_cnt);
 
   NanAsyncQueueWorker(new ConvertWorker(callback, debug, srcBlob, width, height, quality, format, resizeStyle));
+  NanReturnUndefined();
+}
+
+// input
+//   args[ 0 ]: options. required, object with following key,values
+//              {
+//                  srcPath:     required. Source image file
+//                  outPath:     required. Output image file
+//                  quality:     optional. 0-100 integer, default 75. JPEG/MIFF/PNG compression level.
+//                  width:       optional. px.
+//                  height:      optional. px.
+//                  resizeStyle: optional. default: "aspectfill". can be "aspectfit", "fill"
+//                  format:      optional. one of http://www.imagemagick.org/script/formats.php ex: "JPEG"
+//                  debug:       optional. 1 or 0
+//              }
+//
+NAN_METHOD(ConvertFile) {
+  NanScope();
+  Magick::InitializeMagick(NULL);
+  MagickCore::SetMagickResourceLimit(MagickCore::ThreadResource, 1);
+
+  if (args.Length() != 2) {
+    THROW_ERROR_EXCEPTION("convert() requires one option argument and one callback argument!");
+    NanReturnUndefined();
+  }
+
+  if (!args[0]->IsObject()) {
+    THROW_ERROR_EXCEPTION("convert()'s 1st argument should be an object");
+    NanReturnUndefined();
+  }
+
+  if (!args[1]->IsFunction()) {
+    THROW_ERROR_EXCEPTION("convert()'s 2nd argument should be a callback");
+    NanReturnUndefined();
+  }
+
+  Local<Object> obj = Local<Object>::Cast(args[0]);
+  NanCallback *callback = new NanCallback(args[1].As<Function>());
+
+  int debug = NanUInt32OptionValue(obj, NanSymbol("debug"), 0);
+  if (debug) printf( "debug: on\n" );
+
+  Local<Value> srcPathValue = obj->Get( NanSymbol("srcPath") );
+  const char* srcPath = "";
+  if ( ! srcPathValue->IsUndefined() ) {
+      size_t count;
+      srcPath = NanCString(srcPathValue, &count);
+  } else {
+      return NanThrowError("convert()'s 1st argument should have \"srcPath\" key with a String instance");
+  }
+  if (debug) printf( "srcPath: %s\n", srcPath );
+
+  Local<Value> outPathValue = obj->Get( NanSymbol("outPath") );
+  const char* outPath = "";
+  if ( ! outPathValue->IsUndefined() ) {
+      size_t count;
+      outPath = NanCString(outPathValue, &count);
+  } else {
+      return NanThrowError("convert()'s 2nd argument should have \"outPath\" key with a String instance");
+  }
+  if (debug) printf( "outPath: %s\n", outPath );
+
+  unsigned int width = obj->Get(NanSymbol("width"))->Uint32Value();
+  if (debug) printf( "width: %d\n", width );
+
+  unsigned int height = obj->Get(NanSymbol("height"))->Uint32Value();
+  if (debug) printf( "height: %d\n", height );
+
+  Local<Value> resizeStyleValue = obj->Get(NanSymbol("resizeStyle"));
+  const char* resizeStyle = NULL;
+  String::AsciiValue resizeStyleAsciiValue(resizeStyleValue->ToString());
+  if (!resizeStyleValue->IsUndefined()) {
+    resizeStyle = static_cast<const char *>(malloc(resizeStyleAsciiValue.length() + 1));
+    strcpy((char *) resizeStyle, (char *) *resizeStyleAsciiValue);
+  } else {
+    resizeStyle = "aspectfill";
+  }
+  if (debug) printf("resizeStyle: %s\n", resizeStyle);
+
+  unsigned int quality = obj->Get(NanSymbol("quality"))->Uint32Value();
+
+  Local<Object> fmt = Local<Object>::Cast(obj->Get(NanSymbol("format")));
+  char *format = NULL;
+  size_t format_cnt;
+  if (!fmt->IsUndefined())
+    format = NanCString(obj->Get(NanSymbol("format")), &format_cnt);
+
+  NanAsyncQueueWorker(new ConvertFileWorker(callback, debug, srcPath, outPath, width, height, quality, format, resizeStyle));
   NanReturnUndefined();
 }
 
@@ -286,6 +373,7 @@ NAN_METHOD(Normalize) {
 
 void init(Handle<Object> target) {
   target->Set(NanSymbol("convert"), FunctionTemplate::New(Convert)->GetFunction());
+  target->Set(NanSymbol("convertFile"), FunctionTemplate::New(ConvertFile)->GetFunction());
   target->Set(NanSymbol("crop"), FunctionTemplate::New(Crop)->GetFunction());
   target->Set(NanSymbol("identify"), FunctionTemplate::New(Identify)->GetFunction());
   target->Set(NanSymbol("normalize"), FunctionTemplate::New(Normalize)->GetFunction());
